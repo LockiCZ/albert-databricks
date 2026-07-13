@@ -25,7 +25,7 @@ checkpoint = f"{checkpoint_container}/{layer_name}/{table_schema}/{table_name}"
 spark.sql(f"""
     CREATE TABLE IF NOT EXISTS {layer_name}.{table_schema}.{table_name}
     USING DELTA
-    LOCATION '{bronze_container}/{layer_name}/{table_schema}/{table_name}'
+    LOCATION '{bronze_container}/external/{table_schema}/{table_name}'
 """)
 
 df = (

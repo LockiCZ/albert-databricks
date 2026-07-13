@@ -14,11 +14,16 @@ resources:
       trigger:
         pause_status: UNPAUSED
         file_arrival:
-          url: /Volumes/landing/sales/files/
+          url: /Volumes/${var.env}_landing/sales/files/
+      environments:
+        - environment_key: default
+          spec:
+            client: "2"
       tasks:
         - task_key: ingestion_raw_data
+          environment_key: default
           spark_python_task:
-            python_file: ./src/ingestion/ingest.py
+            python_file: ${workspace.file_path}/src/ingestion/ingest.py
             parameters:
               - --landing_volume
               - "{{job.parameters.landing_volume}}"
@@ -32,24 +37,19 @@ resources:
               - "{{job.parameters.table_name}}"
               - --checkpoint_container
               - "{{job.parameters.checkpoint_container}}"
-          environment_key: Default
       queue:
         enabled: true
       parameters:
         - name: bronze_container
           default: abfss://bronze@${var.storage_account}.dfs.core.windows.net/
         - name: layer_name
-          default: bronze
+          default: ${var.env}_bronze
         - name: landing_volume
-          default: /Volumes/landing/sales/files
+          default: /Volumes/${var.env}_landing/sales/files
         - name: table_name
           default: sales_fact
         - name: table_schema
           default: sales
         - name: checkpoint_container
           default: abfss://checkpoints@${var.storage_account}.dfs.core.windows.net/
-      environments:
-        - environment_key: Default
-          spec:
-            environment_version: "5"
       performance_target: PERFORMANCE_OPTIMIZED
