@@ -1,0 +1,24 @@
+bundle:
+  name: albert-databricks
+
+include:
+  - resources/jobs/*.yaml
+
+variables:
+  storage_account:
+    description: ADLS Gen2 storage account name
+    default: saalberttest
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://adb-7405607489911817.17.azuredatabricks.net
+
+  prod:
+    mode: production
+    workspace:
+      host: https://<your-prod-workspace>.azuredatabricks.net
+    variables:
+      storage_account: saalbertprod
