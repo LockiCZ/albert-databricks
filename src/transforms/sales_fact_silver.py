@@ -1,3 +1,4 @@
+import argparse
 import logging
 
 from delta.tables import DeltaTable
@@ -9,32 +10,22 @@ spark = SparkSession.builder.getOrCreate()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("apply_changes")
 
-#parser = argparse.ArgumentParser()
-#parser.add_argument("--source_layer")
-#parser.add_argument("--target_layer")
-#parser.add_argument("--checkpoint_container")
-#parser.add_argument("--table_schema")
-#parser.add_argument("--source_table_name")
-#parser.add_argument("--target_table_name")
-#args = parser.parse_args()
-#
-#source_layer         = args.source_layer
-#target_layer         = args.target_layer
-#checkpoint_container = args.checkpoint_container
-#table_schema         = args.table_schema
-#source_table_name    = args.source_table_name
-#target_table_name    = args.target_table_name
+parser = argparse.ArgumentParser()
+parser.add_argument("--source_layer")
+parser.add_argument("--target_layer")
+parser.add_argument("--checkpoint_container")
+parser.add_argument("--table_schema")
+parser.add_argument("--table_name")
+args = parser.parse_args()
 
-# Hardcoded for now (matches the dev job defaults). Revert to argparse later.
-source_layer         = "dev_bronze"
-target_layer         = "dev_silver"
-checkpoint_container = "abfss://checkpoints@saalbertdev.dfs.core.windows.net/"
-table_schema         = "sales"
-table_name           = "sales_fact"
-
+source_layer         = args.source_layer
+target_layer         = args.target_layer
+checkpoint_container = args.checkpoint_container
+table_schema         = args.table_schema
+table_name           = args.table_name
 
 source_table = f"{source_layer}.{table_schema}.{table_name}"
-target_table  = f"{target_layer}.{table_schema}.{table_name}"
+target_table = f"{target_layer}.{table_schema}.{table_name}"
 checkpoint = f"{checkpoint_container}/{target_layer}/{table_schema}/{table_name}"
 
 # Create the silver target as an empty managed Delta table with an explicit

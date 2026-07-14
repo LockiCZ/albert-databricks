@@ -1,7 +1,7 @@
 resources:
   jobs:
-    TransactionsBronzeToSilver:
-      name: transactions_bronze_to_silver
+    SalesFactSilver:
+      name: sales_fact_silver
       email_notifications:
         on_failure:
           - pa.lokvenc@gmail.com
@@ -11,6 +11,12 @@ resources:
           - metric: RUN_DURATION_SECONDS
             op: GREATER_THAN
             value: 1800
+      trigger:
+        pause_status: UNPAUSED
+        table_update:
+          table_names:
+            - ${var.env}_bronze.sales.sales_fact
+          condition: ANY_UPDATED
       environments:
         - environment_key: default
           spec:
@@ -19,7 +25,7 @@ resources:
         - task_key: apply_changes
           environment_key: default
           spark_python_task:
-            python_file: ${workspace.file_path}/src/transforms/apply_changes.py
+            python_file: ${workspace.file_path}/src/transforms/sales_fact_silver.py
             parameters:
               - --source_layer
               - "{{job.parameters.source_layer}}"
@@ -29,10 +35,8 @@ resources:
               - "{{job.parameters.checkpoint_container}}"
               - --table_schema
               - "{{job.parameters.table_schema}}"
-              - --source_table_name
-              - "{{job.parameters.source_table_name}}"
-              - --target_table_name
-              - "{{job.parameters.target_table_name}}"
+              - --table_name
+              - "{{job.parameters.table_name}}"
       queue:
         enabled: true
       parameters:
@@ -44,8 +48,6 @@ resources:
           default: abfss://checkpoints@${var.storage_account}.dfs.core.windows.net/
         - name: table_schema
           default: sales
-        - name: source_table_name
-          default: transactions_changes
-        - name: target_table_name
-          default: transactions
+        - name: table_name
+          default: sales_fact
       performance_target: PERFORMANCE_OPTIMIZED
