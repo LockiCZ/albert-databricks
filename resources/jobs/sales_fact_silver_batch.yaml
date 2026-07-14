@@ -1,7 +1,7 @@
 resources:
   jobs:
-    SalesFactSilver:
-      name: sales_fact_silver
+    SalesFactSilverBatch:
+      name: sales_fact_silver_batch
       email_notifications:
         on_failure:
           - pa.lokvenc@gmail.com
@@ -13,28 +13,30 @@ resources:
             value: 1800
       schedule:
         pause_status: UNPAUSED
-        quartz_cron_expression: "0 1 * * * ?"
+        quartz_cron_expression: "0 0/15 * * * ?"
         timezone_id: UTC
       environments:
         - environment_key: default
           spec:
             client: "2"
       tasks:
-        - task_key: apply_changes
+        - task_key: apply_changes_batch
           environment_key: default
           spark_python_task:
-            python_file: ${workspace.file_path}/src/transforms/sales_fact_silver.py
+            python_file: ${workspace.file_path}/src/transforms/sales_fact_silver_batch.py
             parameters:
               - --source_layer
               - "{{job.parameters.source_layer}}"
               - --target_layer
               - "{{job.parameters.target_layer}}"
-              - --checkpoint_container
-              - "{{job.parameters.checkpoint_container}}"
+              - --checkpoints_catalog
+              - "{{job.parameters.checkpoints_catalog}}"
               - --table_schema
               - "{{job.parameters.table_schema}}"
-              - --table_name
-              - "{{job.parameters.table_name}}"
+              - --source_table_name
+              - "{{job.parameters.source_table_name}}"
+              - --target_table_name
+              - "{{job.parameters.target_table_name}}"
       queue:
         enabled: true
       parameters:
@@ -42,10 +44,12 @@ resources:
           default: ${var.env}_bronze
         - name: target_layer
           default: ${var.env}_silver
-        - name: checkpoint_container
-          default: abfss://checkpoints@${var.storage_account}.dfs.core.windows.net/
+        - name: checkpoints_catalog
+          default: ${var.env}_checkpoints
         - name: table_schema
           default: sales
-        - name: table_name
+        - name: source_table_name
           default: sales_fact
+        - name: target_table_name
+          default: sales_fact_batch
       performance_target: PERFORMANCE_OPTIMIZED

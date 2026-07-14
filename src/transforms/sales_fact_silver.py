@@ -1,9 +1,14 @@
 import argparse
 import logging
+import os
+import sys
 
 from delta.tables import DeltaTable
-from pyspark.sql import SparkSession, Window
+from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
+
+# Make sibling modules importable regardless of how the file is launched.
+from silver_cdc import dedup_latest_changes
 
 spark = SparkSession.builder.getOrCreate()
 
@@ -56,12 +61,10 @@ column_map = {c: f"s.{c}" for c in spark.table(target_table).columns}
 def upsert_to_silver(microbatch_df, batch_id):
     # A single MERGE requires at most one source row per key, so collapse this
     # microbatch to the latest operation per key by sequence value.
-    dedup_window = Window.partitionBy("slip_seq_id").orderBy(F.col("creation_date").desc())
-    latest_changes = (
-        microbatch_df
-        .withColumn("_change_rank", F.row_number().over(dedup_window))
-        .filter("_change_rank = 1")
-        .drop("_change_rank")
+    latest_changes = dedup_latest_changes(
+        microbatch_df,
+        keys=["slip_seq_id"],
+        sequence_col="creation_date",
     )
 
     # Get operation counts for detailed logging
@@ -76,10 +79,8 @@ def upsert_to_silver(microbatch_df, batch_id):
     total = sum(counts.values())
 
     if total == 0:
-        print(f"batch {batch_id}: no changes, skipping merge")
         return
 
-    print(f"batch {batch_id}: processing {total} change(s)")
 
     (
         DeltaTable.forName(spark, target_table)
@@ -91,10 +92,6 @@ def upsert_to_silver(microbatch_df, batch_id):
         .execute()
     )
 
-    print(
-        f"batch {batch_id}: applied {total} change(s) "
-        f"(inserts={counts.get('I', 0)}, updates={counts.get('U', 0)}, deletes={counts.get('D', 0)})"
-    )
 
 
 # Stream new change rows from the bronze Delta table. The checkpoint tracks which
