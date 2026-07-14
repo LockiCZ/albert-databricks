@@ -34,16 +34,18 @@ checkpoint = f"{checkpoint_container}/{target_layer}/{table_schema}/{table_name}
 (
     DeltaTable.createIfNotExists(spark)
     .tableName(target_table)
-    .addColumn("SLIP_SEQ_ID", "BIGINT", nullable=False)
-    .addColumn("CREATION_DATE", "TIMESTAMP")
-    .addColumn("SITE_ID", "INT")
-    .addColumn("START_DATE", "TIMESTAMP")
-    .addColumn("END_DATE", "TIMESTAMP")
-    .addColumn("DURATION", "INT")
-    .addColumn("ITEM_COUNT", "INT")
-    .addColumn("AMOUNT_RP", "DECIMAL(18,2)")
-    .addColumn("LINE_COUNT", "INT")
-    .clusterBy("SLIP_SEQ_ID")          # liquid clustering on the merge key
+    .addColumn("slip_seq_id", "BIGINT", nullable=False)
+    .addColumn("creation_date", "TIMESTAMP")
+    .addColumn("site_id", "INT")
+    .addColumn("start_date", "TIMESTAMP")
+    .addColumn("end_date", "TIMESTAMP")
+    .addColumn("duration", "INT")
+    .addColumn("item_count", "INT")
+    .addColumn("amount_rp", "DECIMAL(18,2)")
+    .addColumn("line_count", "INT")
+    .addColumn("_ingestion_time", "TIMESTAMP")
+    .addColumn("_source_file", "STRING")
+    .clusterBy("slip_seq_id")          # liquid clustering on the merge key
     .property("delta.autoOptimize.optimizeWrite", "true")
     .property("delta.autoOptimize.autoCompact", "true")
     .execute()
@@ -54,44 +56,52 @@ column_map = {c: f"s.{c}" for c in spark.table(target_table).columns}
 def upsert_to_silver(microbatch_df, batch_id):
     # A single MERGE requires at most one source row per key, so collapse this
     # microbatch to the latest operation per key by sequence value.
-    dedup_window = Window.partitionBy("SLIP_SEQ_ID").orderBy(F.col("CREATION_DATE").desc())
+    dedup_window = Window.partitionBy("slip_seq_id").orderBy(F.col("creation_date").desc())
     latest_changes = (
         microbatch_df
         .withColumn("_change_rank", F.row_number().over(dedup_window))
         .filter("_change_rank = 1")
         .drop("_change_rank")
-        # Cached so the row-count below and the MERGE don't recompute the source.
-        .persist()
     )
 
-    try:
-        row_count = latest_changes.count()
-
-        if row_count == 0:
-            logger.info("batch %s: no changes, skipping merge", batch_id)
-            return
-
-        (
-            DeltaTable.forName(spark, target_table)
-            .alias("t")
-            .merge(latest_changes.alias("s"), "t.SLIP_SEQ_ID = s.SLIP_SEQ_ID")
-            .whenMatchedDelete(condition="s.OPERATION_TYPE = 'D'")
-            .whenMatchedUpdate(condition="s.OPERATION_TYPE = 'U'", set=column_map)
-            .whenNotMatchedInsert(condition="s.OPERATION_TYPE = 'I'", values=column_map)
-            .execute()
+    # Get operation counts for detailed logging
+    counts = {
+        row["operation_type"]: row["cnt"]
+        for row in (
+            latest_changes.groupBy("operation_type")
+            .agg(F.count("*").alias("cnt"))
+            .collect()
         )
+    }
+    total = sum(counts.values())
 
-        logger.info(
-            f"batch {batch_id}: applied {row_count} changes"
-        )
-    finally:
-        latest_changes.unpersist()
+    if total == 0:
+        print(f"batch {batch_id}: no changes, skipping merge")
+        return
+
+    print(f"batch {batch_id}: processing {total} change(s)")
+
+    (
+        DeltaTable.forName(spark, target_table)
+        .alias("t")
+        .merge(latest_changes.alias("s"), "t.slip_seq_id = s.slip_seq_id")
+        .whenMatchedDelete(condition="s.operation_type = 'D'")
+        .whenMatchedUpdate(condition="s.operation_type = 'U' AND s.creation_date >= t.creation_date", set=column_map)
+        .whenNotMatchedInsert(condition="s.operation_type = 'I'", values=column_map)
+        .execute()
+    )
+
+    print(
+        f"batch {batch_id}: applied {total} change(s) "
+        f"(inserts={counts.get('I', 0)}, updates={counts.get('U', 0)}, deletes={counts.get('D', 0)})"
+    )
 
 
 # Stream new change rows from the bronze Delta table. The checkpoint tracks which
 # rows have already been processed, so each run only applies changes that arrived
 # since the previous run (incremental, exactly-once).
-(
+logger.info("Starting streaming read from %s (availableNow mode)", source_table)
+query = (
     spark.readStream
     .format("delta")
     .table(source_table)
@@ -100,5 +110,7 @@ def upsert_to_silver(microbatch_df, batch_id):
     .option("checkpointLocation", checkpoint)
     .trigger(availableNow=True)
     .start()
-    .awaitTermination()
 )
+
+query.awaitTermination()
+logger.info("Transform completed: %s", target_table)

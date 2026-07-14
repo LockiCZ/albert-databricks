@@ -14,7 +14,7 @@ resources:
       trigger:
         pause_status: UNPAUSED
         file_arrival:
-          url: /Volumes/${var.env}_landing/sales/files/
+          url: /Volumes/${var.env}_landing/sales/files/sales_fact/
       environments:
         - environment_key: default
           spec:
