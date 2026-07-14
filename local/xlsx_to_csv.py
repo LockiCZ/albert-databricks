@@ -17,6 +17,9 @@ def main():
     sheets = pd.read_excel(XLSX_PATH, sheet_name=None)
     for name, df in sheets.items():
         out_path = f"{OUT_DIR}/{name.strip().lower()}.csv"
+        if "OPERATION_TYPE" not in df.columns:
+            df["OPERATION_TYPE"] = "I"
+
         df.to_csv(out_path, index=False)
         print(f"sheet '{name}' -> {out_path} ({len(df)} data rows)")
 
