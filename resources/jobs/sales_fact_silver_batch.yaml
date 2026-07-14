@@ -1,0 +1,55 @@
+resources:
+  jobs:
+    SalesFactSilverBatch:
+      name: sales_fact_silver_batch
+      email_notifications:
+        on_failure:
+          - pa.lokvenc@gmail.com
+      timeout_seconds: 3600
+      health:
+        rules:
+          - metric: RUN_DURATION_SECONDS
+            op: GREATER_THAN
+            value: 1800
+      schedule:
+        pause_status: UNPAUSED
+        quartz_cron_expression: "0 0/15 * * * ?"
+        timezone_id: UTC
+      environments:
+        - environment_key: default
+          spec:
+            client: "2"
+      tasks:
+        - task_key: apply_changes_batch
+          environment_key: default
+          spark_python_task:
+            python_file: ${workspace.file_path}/src/transforms/sales_fact_silver_batch.py
+            parameters:
+              - --source_layer
+              - "{{job.parameters.source_layer}}"
+              - --target_layer
+              - "{{job.parameters.target_layer}}"
+              - --checkpoints_catalog
+              - "{{job.parameters.checkpoints_catalog}}"
+              - --table_schema
+              - "{{job.parameters.table_schema}}"
+              - --source_table_name
+              - "{{job.parameters.source_table_name}}"
+              - --target_table_name
+              - "{{job.parameters.target_table_name}}"
+      queue:
+        enabled: true
+      parameters:
+        - name: source_layer
+          default: ${var.env}_bronze
+        - name: target_layer
+          default: ${var.env}_silver
+        - name: checkpoints_catalog
+          default: ${var.env}_checkpoints
+        - name: table_schema
+          default: sales
+        - name: source_table_name
+          default: sales_fact
+        - name: target_table_name
+          default: sales_fact_batch
+      performance_target: PERFORMANCE_OPTIMIZED

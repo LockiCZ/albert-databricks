@@ -1,0 +1,51 @@
+resources:
+  jobs:
+    SalesFactSilver:
+      name: sales_fact_silver
+      email_notifications:
+        on_failure:
+          - pa.lokvenc@gmail.com
+      timeout_seconds: 3600
+      health:
+        rules:
+          - metric: RUN_DURATION_SECONDS
+            op: GREATER_THAN
+            value: 1800
+      schedule:
+        pause_status: UNPAUSED
+        quartz_cron_expression: "0 1 * * * ?"
+        timezone_id: UTC
+      environments:
+        - environment_key: default
+          spec:
+            client: "2"
+      tasks:
+        - task_key: apply_changes
+          environment_key: default
+          spark_python_task:
+            python_file: ${workspace.file_path}/src/transforms/sales_fact_silver.py
+            parameters:
+              - --source_layer
+              - "{{job.parameters.source_layer}}"
+              - --target_layer
+              - "{{job.parameters.target_layer}}"
+              - --checkpoint_container
+              - "{{job.parameters.checkpoint_container}}"
+              - --table_schema
+              - "{{job.parameters.table_schema}}"
+              - --table_name
+              - "{{job.parameters.table_name}}"
+      queue:
+        enabled: true
+      parameters:
+        - name: source_layer
+          default: ${var.env}_bronze
+        - name: target_layer
+          default: ${var.env}_silver
+        - name: checkpoint_container
+          default: abfss://checkpoints@${var.storage_account}.dfs.core.windows.net/
+        - name: table_schema
+          default: sales
+        - name: table_name
+          default: sales_fact
+      performance_target: PERFORMANCE_OPTIMIZED

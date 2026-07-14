@@ -1,0 +1,20 @@
+resources:
+  jobs:
+    SalesFactSilverDLTTrigger:
+      name: sales_fact_silver_dlt_trigger
+      email_notifications:
+        on_failure:
+          - pa.lokvenc@gmail.com
+      timeout_seconds: 3600
+      trigger:
+        pause_status: UNPAUSED
+        table_update:
+          table_names:
+            - ${var.env}_bronze.sales.sales_fact
+          condition: ANY_UPDATED
+      tasks:
+        - task_key: run_silver_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.SalesFactSilverDLT.id}
+      queue:
+        enabled: true

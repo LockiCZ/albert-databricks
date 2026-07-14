@@ -1,0 +1,32 @@
+bundle:
+  name: albert-databricks
+
+include:
+  - resources/clusters/*.yaml
+  - resources/jobs/*.yaml
+  - resources/pipelines/*.yaml
+
+variables:
+  storage_account:
+    description: ADLS Gen2 storage account name
+  env:
+    description: Environment name (used to prefix catalogs, tag resources, etc.)
+
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://adb-7405610239097199.19.azuredatabricks.net
+    variables:
+      storage_account: saalbertdev
+      env: dev
+
+  prod:
+    mode: production
+    workspace:
+      host: https://<your-prod-workspace>.azuredatabricks.net
+    variables:
+      storage_account: saalbertprod
+      env: prod

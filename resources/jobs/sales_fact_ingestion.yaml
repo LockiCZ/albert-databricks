@@ -1,0 +1,55 @@
+resources:
+  jobs:
+    Ingestion:
+      name: sales_fact_ingestion
+      email_notifications:
+        on_failure:
+          - pa.lokvenc@gmail.com
+      timeout_seconds: 3600
+      health:
+        rules:
+          - metric: RUN_DURATION_SECONDS
+            op: GREATER_THAN
+            value: 1800
+      trigger:
+        pause_status: UNPAUSED
+        file_arrival:
+          url: /Volumes/${var.env}_landing/sales/files/sales_fact/
+      environments:
+        - environment_key: default
+          spec:
+            client: "2"
+      tasks:
+        - task_key: ingestion_raw_data
+          environment_key: default
+          spark_python_task:
+            python_file: ${workspace.file_path}/src/ingestion/ingest.py
+            parameters:
+              - --landing_volume
+              - "{{job.parameters.landing_volume}}"
+              - --bronze_container
+              - "{{job.parameters.bronze_container}}"
+              - --layer_name
+              - "{{job.parameters.layer_name}}"
+              - --table_schema
+              - "{{job.parameters.table_schema}}"
+              - --table_name
+              - "{{job.parameters.table_name}}"
+              - --checkpoint_container
+              - "{{job.parameters.checkpoint_container}}"
+      queue:
+        enabled: true
+      parameters:
+        - name: bronze_container
+          default: abfss://bronze@${var.storage_account}.dfs.core.windows.net/
+        - name: layer_name
+          default: ${var.env}_bronze
+        - name: landing_volume
+          default: /Volumes/${var.env}_landing/sales/files
+        - name: table_name
+          default: sales_fact
+        - name: table_schema
+          default: sales
+        - name: checkpoint_container
+          default: abfss://checkpoints@${var.storage_account}.dfs.core.windows.net/
+      performance_target: PERFORMANCE_OPTIMIZED

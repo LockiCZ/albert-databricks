@@ -1,0 +1,15 @@
+variables:
+  ingestion_cluster:
+    description: Reusable job cluster definition for ingestion jobs
+    type: complex
+    default:
+      spark_version: 15.4.x-scala2.12
+      node_type_id: Standard_DS3_v2
+      num_workers: 0
+      spark_conf:
+        spark.databricks.cluster.profile: singleNode
+        spark.master: "local[*]"
+      custom_tags:
+        ResourceClass: SingleNode
+      azure_attributes:
+        availability: ON_DEMAND_AZURE

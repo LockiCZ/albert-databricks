@@ -1,0 +1,25 @@
+resources:
+  pipelines:
+    SalesFactSilverDLT:
+      name: sales_fact_silver_dlt
+      catalog: ${var.env}_silver
+      schema: sales
+      serverless: true
+      continuous: false
+      photon: true
+      channel: CURRENT
+      development: false
+      libraries:
+        - file:
+            path: ${workspace.file_path}/src/transforms/sales_fact_silver_dlt.py
+      configuration:
+        source_layer: ${var.env}_bronze
+        table_schema: sales
+        source_table_name: sales_fact
+        target_table_name: sales_fact_dlt
+      notifications:
+        - email_recipients:
+            - pa.lokvenc@gmail.com
+          alerts:
+            - on-update-failure
+            - on-flow-failure
