@@ -6,25 +6,33 @@ from pyspark.sql import functions as F
 
 spark = SparkSession.builder.getOrCreate()
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--source_layer")
-parser.add_argument("--target_layer")
-parser.add_argument("--checkpoint_container")
-parser.add_argument("--table_schema")
-parser.add_argument("--source_table_name")
-parser.add_argument("--target_table_name")
-args = parser.parse_args()
+#parser = argparse.ArgumentParser()
+#parser.add_argument("--source_layer")
+#parser.add_argument("--target_layer")
+#parser.add_argument("--checkpoint_container")
+#parser.add_argument("--table_schema")
+#parser.add_argument("--source_table_name")
+#parser.add_argument("--target_table_name")
+#args = parser.parse_args()
+#
+#source_layer         = args.source_layer
+#target_layer         = args.target_layer
+#checkpoint_container = args.checkpoint_container
+#table_schema         = args.table_schema
+#source_table_name    = args.source_table_name
+#target_table_name    = args.target_table_name
 
-source_layer         = args.source_layer
-target_layer         = args.target_layer
-checkpoint_container = args.checkpoint_container
-table_schema         = args.table_schema
-source_table_name    = args.source_table_name
-target_table_name    = args.target_table_name
+# Hardcoded for now (matches the dev job defaults). Revert to argparse later.
+source_layer         = "dev_bronze"
+target_layer         = "dev_silver"
+checkpoint_container = "abfss://checkpoints@saalbertdev.dfs.core.windows.net/"
+table_schema         = "sales"
+table_name           = "sales_fact"
 
-source_table = f"{source_layer}.{table_schema}.{source_table_name}"
-target_table  = f"{target_layer}.{table_schema}.{target_table_name}"
-checkpoint = f"{checkpoint_container}/{target_layer}/{table_schema}/{target_table_name}"
+
+source_table = f"{source_layer}.{table_schema}.{table_name}"
+target_table  = f"{target_layer}.{table_schema}.{table_name}"
+checkpoint = f"{checkpoint_container}/{target_layer}/{table_schema}/{table_name}"
 
 # Business columns are everything in the change feed except the CDC operation flag.
 column_map = {c: f"s.{c}" for c in spark.table(source_table).columns if c != "OPERATION_TYPE"}
@@ -44,6 +52,9 @@ column_map = {c: f"s.{c}" for c in spark.table(source_table).columns if c != "OP
     .addColumn("ITEM_COUNT", "INT")
     .addColumn("AMOUNT_RP", "DECIMAL(18,2)")
     .addColumn("LINE_COUNT", "INT")
+    .clusterBy("SLIP_SEQ_ID")          # liquid clustering on the merge key
+    .property("delta.autoOptimize.optimizeWrite", "true")
+    .property("delta.autoOptimize.autoCompact", "true")
     .execute()
 )
 
